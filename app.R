@@ -1,39 +1,63 @@
+# Monte Carlo retirement simulation (Shiny app, Rcpp backend).
+# Run with: shiny::runApp("app.R")
+
 # Import libraries
 library(shiny)
 library(ggplot2)
 library(scales)
 library(Rcpp)
-library(shinyjs)
+library(shinythemes)
 
 sourceCpp("simulatePortfolio.cpp")
 
 # Define UI function
 ui <- function() {
   fluidPage(
-    useShinyjs(),
+    theme = shinytheme("flatly"),
     titlePanel("Monte Carlo Simulation for Stock Investments"),
     sidebarLayout(
       sidebarPanel(
         tags$style(HTML("
           .shiny-input-container { font-size: 12px; }
+          .group1 .shiny-input-container { background-color: #f0f0f5; }
+          .group2 .shiny-input-container { background-color: #f5f5f0; }
+          .group3 .shiny-input-container { background-color: #f0fff0; }
+          .group4 .shiny-input-container { background-color: #fff5ee; }
         ")),
-        numericInput("mean_return", "Mean return (%)", value = 6),
-        numericInput("sd_return", "Standard deviation of return (%)", value = 20),
-        numericInput("mean_inflation", "Mean inflation (%)", value = 3.28),
-        numericInput("sd_inflation", "Standard deviation of inflation (%)", value = 4.93),
-        numericInput("start_balance", "Starting balance ($)", value = 200*10^3),
-        numericInput("monthly_contribution", "Monthly contribution ($)", value = 2500),
-        numericInput("annual_increase", "Annual contribution increase (%)", value = 5),
-        numericInput("contribution_years", "Years of Contributions", value = 15),
-        numericInput("retirement_years", "Years of Retirement", value = 50),
-        radioButtons("withdrawal_type", "Withdrawal Type:",
-                     choices = list("Fixed Dollar Amount" = "fixed", "Percentage of Balance" = "percent"),
-                     selected = "fixed"),
-        numericInput("fixed_withdrawal", "Fixed monthly pre-tax withdrawal ($)", value = 4000, min = 0),
-        selectInput("time_unit", "Time unit:", choices = c("Months", "Years")),
-        numericInput("withdrawal_rate", "Annual pre-tax withdrawal rate (%) during retirement", value = 4),
-        numericInput("num_simulations", "Number of simulations", value = 500),
-        actionButton("run_sim", "Run Simulation")
+        # Returns and inflation
+        div(class = "group1",
+          numericInput("mean_return", "Mean return (%)", value = 6),
+          numericInput("sd_return", "Standard deviation of return (%)", value = 20),
+          numericInput("mean_inflation", "Mean inflation (%)", value = 3.28),
+          numericInput("sd_inflation", "Standard deviation of inflation (%)", value = 4.93)
+        ),
+        # Contributions
+        div(class = "group2",
+          numericInput("start_balance", "Starting balance ($)", value = 200*10^3),
+          numericInput("monthly_contribution", "Monthly contribution ($)", value = 2500),
+          numericInput("annual_increase", "Annual contribution increase (%)", value = 5),
+          numericInput("contribution_years", "Years of Contributions", value = 15)
+        ),
+        # Retirement
+        div(class = "group3",
+          numericInput("retirement_years", "Years of Retirement", value = 50),
+          radioButtons("withdrawal_type", "Withdrawal Type:",
+                       choices = list("Fixed Dollar Amount" = "fixed", "Percentage of Balance" = "percent"),
+                       selected = "fixed"),
+          conditionalPanel(
+            condition = "input.withdrawal_type == 'fixed'",
+            numericInput("fixed_withdrawal", "Fixed monthly pre-tax withdrawal ($)", value = 4000, min = 0)
+          ),
+          conditionalPanel(
+            condition = "input.withdrawal_type == 'percent'",
+            numericInput("withdrawal_rate", "Annual pre-tax withdrawal rate (%) during retirement", value = 4)
+          )
+        ),
+        # Simulation
+        div(class = "group4",
+          numericInput("num_simulations", "Number of simulations", value = 500),
+          actionButton("run_sim", "Run Simulation")
+        )
       ),
       mainPanel(
         tabsetPanel(type = "tabs",
@@ -44,7 +68,7 @@ ui <- function() {
                     tabPanel("Monthly Contributions Table", tableOutput("contrib_table")),
                     tabPanel("Withdrawal Table", 
                              tableOutput("withdrawal_table"),
-                             textOutput("mean_inflation_adjusted_withdrawal")  # Added this line to display the mean inflation-adjusted withdrawal
+                             textOutput("mean_inflation_adjusted_withdrawal")
                     ),
                     tabPanel("Future Nominal Withdrawals", 
                              tableOutput("future_nominal_table"),
@@ -84,7 +108,7 @@ simulate_portfolio <- function(num_simulations, start_balance, mean_return, sd_r
   return(parsed_results)
 }
 
-server <- function(input, output) {
+server <- function(input, output, session) {
   # Reactive function to run simulation
   results <- eventReactive(input$run_sim, {
     # Input validation
@@ -232,10 +256,10 @@ plot_histogram <- function(data, title) {
     theme_minimal() +
     scale_x_continuous(labels = scales::dollar_format()) +
     theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
-    geom_vline(xintercept = mean_value, color = "red", linetype = "dashed", size = 1) +
-    geom_vline(xintercept = median_value, color = "green", linetype = "dashed", size = 1) +
-    geom_vline(xintercept = lower_CI, color = "blue", linetype = "dotted", size = 1) +
-    geom_vline(xintercept = upper_CI, color = "blue", linetype = "dotted", size = 1)
+    geom_vline(xintercept = mean_value, color = "red", linetype = "dashed", linewidth = 1) +
+    geom_vline(xintercept = median_value, color = "green", linetype = "dashed", linewidth = 1) +
+    geom_vline(xintercept = lower_CI, color = "blue", linetype = "dotted", linewidth = 1) +
+    geom_vline(xintercept = upper_CI, color = "blue", linetype = "dotted", linewidth = 1)
 }
 
 plot_balance_over_time <- function(data) {
@@ -248,7 +272,7 @@ plot_balance_over_time <- function(data) {
   
   ggplot(data, aes(x = Month, y = Balance)) +
     geom_line(aes(group = Simulation), color = "grey", alpha = 0.1) +
-    geom_line(data = avg_balance, aes(x = Month, y = Balance), color = "blue", size = 1) +
+    geom_line(data = avg_balance, aes(x = Month, y = Balance), color = "blue", linewidth = 1) +
     labs(title = "Balance Over Time", x = "Month", y = "Balance ($)") +
     theme_minimal() +
     scale_y_continuous(labels = scales::dollar_format())
@@ -264,7 +288,7 @@ plot_withdrawals_over_time <- function(data) {
   
   ggplot(data, aes(x = Month, y = Withdrawal)) +
     geom_line(aes(group = Simulation), color = "grey", alpha = 0.1) +
-    geom_line(data = avg_withdrawal, aes(x = Month, y = Withdrawal), color = "red", size = 1) +
+    geom_line(data = avg_withdrawal, aes(x = Month, y = Withdrawal), color = "red", linewidth = 1) +
     labs(title = "Withdrawals Over Time", x = "Month", y = "Withdrawal ($)") +
     theme_minimal() +
     scale_y_continuous(labels = scales::dollar_format())
@@ -316,7 +340,7 @@ calculate_contributions <- function(contribution_years, monthly_contribution, an
   contributions_nominal[1] <- monthly_contribution * 12  # Annual contribution
   contributions_inflation_adjusted[1] <- contributions_nominal[1]
   
-  for (i in 2:length(contributions_nominal)) {
+  for (i in seq_along(contributions_nominal)[-1]) {
     contributions_nominal[i] <- contributions_nominal[i - 1] * annual_increase_factor
     contributions_inflation_adjusted[i] <- contributions_nominal[i] / (inflation_factor ^ (i-1))
   }
