@@ -8,31 +8,29 @@ An interactive R Shiny app that runs a Monte Carlo simulation of a retirement po
 
 You enter your assumptions in the sidebar and press "Run Simulation". The app simulates many random market and inflation paths month by month and shows:
 
-- histograms of the portfolio balance at retirement and at the end of retirement (mean, median and 95% interval marked)
-- balance and withdrawals over time, every simulated path plus the average
-- a table of yearly contributions, nominal and inflation-adjusted
-- two deterministic tables for a fixed withdrawal (what it is worth in today's dollars, and what it would be in future nominal dollars, using the mean inflation input)
-- summary statistics (mean, median, 95% and 90% intervals) and the share of simulations that end with a negative balance
+- histograms of the portfolio balance at retirement and at the end of retirement (mean, median and 95% interval marked), in today's or nominal dollars
+- balance and withdrawals over time, every simulated path plus the average, in today's or nominal dollars
+- a table of yearly contributions, nominal and in today's dollars
+- two deterministic tables for a withdrawal (a constant nominal amount and what it is worth in today's dollars, and an inflation-indexed amount with its nominal value, using the mean inflation input)
+- summary statistics in both today's and nominal dollars (mean, median, 95% and 90% intervals) and the share of simulations that end with a negative balance
 
 ## Modelling assumptions
 
-All of this is what the code in `simulatePortfolio.cpp` does. Inputs are annual percentages, simulated in monthly steps.
+All of this is what the code in `simulatePortfolio.cpp` does. Inputs are annual percentages, simulated in monthly steps. The whole simulation runs in **nominal** dollars; results are reported both in nominal dollars and in **today's (real) dollars**, obtained by dividing each nominal amount by the cumulative inflation index of the same month (the index is 1 at the start).
 
-- **Returns:** each month's return is drawn independently from a normal distribution with mean `mean return / 12` and standard deviation `sd of return / 12`. Returns are not correlated with inflation.
-- **Inflation:** each month's inflation is drawn independently from a normal distribution with mean `mean inflation / 12` and standard deviation `sd of inflation / 12`. Monthly draws are compounded into a cumulative inflation index that starts at 1.
-- **Contributions:** the monthly contribution is stepped up by the "annual contribution increase" percentage once a year during the contribution years. Each contribution is divided by the cumulative inflation index before it is added to the balance.
-- **Balance:** each month, balance = previous balance x (1 + that month's return) + contribution - withdrawal. The balance is not floored at zero: a depleted portfolio keeps going negative, and the app reports the share of paths that end below zero.
+- **Returns:** the "mean return" input is a nominal annual return. Each month's return is drawn independently from a normal distribution with mean `(1 + mean return)^(1/12) - 1` (so twelve average months compound to exactly the annual figure) and standard deviation `sd of return / sqrt(12)` (monthly variances add, so the annualized SD of the monthly returns equals the input). Returns are not correlated with inflation. Note that the SD of a 12-month compounded return is a little higher than the input, because compounding is convex.
+- **Inflation:** each month's inflation is drawn independently from a normal distribution with mean `(1 + mean inflation)^(1/12) - 1` and standard deviation `sd of inflation / sqrt(12)`. Monthly draws are compounded into a cumulative inflation index that starts at 1.
+- **Contributions:** the monthly contribution is a nominal schedule. It is stepped up by the "annual contribution increase" percentage once a year during the contribution years and is added to the nominal balance as is.
+- **Balance:** each month, nominal balance = previous balance x (1 + that month's nominal return) + contribution - withdrawal. The real balance is the nominal balance divided by the cumulative inflation index. The balance is not floored at zero: a depleted portfolio keeps going negative, and the app reports the share of paths that end below zero.
 - **Withdrawals** start the month after the contribution years end. Two modes:
-  - *Fixed dollar amount:* the monthly amount you enter, divided by (1 + that month's inflation draw).
-  - *Percentage of balance:* the previous balance times `annual rate / 12`, divided by the cumulative inflation index.
-- **Reported withdrawal "in today's dollars":** per path, the monthly withdrawals are multiplied by the cumulative inflation index at the end of the path and averaged over the retirement months. The mean, median and 95% interval of that figure across paths are shown.
-- **Tables:** the contribution and fixed-withdrawal tables are deterministic and use the mean inflation input, not the random draws.
+  - *Fixed dollar amount:* the amount you enter is in today's dollars (start of the simulation). Each month the nominal withdrawal is that amount times the cumulative inflation index, so its real value stays constant.
+  - *Percentage of balance:* the previous nominal balance times `annual rate / 12`.
+- **Reported results:** the sidebar switch chooses whether charts (histograms, balance and withdrawal paths) are drawn in today's dollars or in nominal dollars, and every title and axis says which. The text statistics always show both. The average monthly withdrawal is the per-path mean over the withdrawal months only.
+- **Tables:** the contribution and withdrawal tables are deterministic and use the mean inflation input, not the random draws, with real amounts expressed in today's dollars (deflated from the start of the simulation).
 - **Randomness:** no seed is set, so each run differs. Call `set.seed()` in R before launching if you need repeatable results.
 
 ## Known limitations
 
-- The monthly standard deviation is the annual input divided by 12 (not by the square root of 12), so the effective annual volatility of the simulated returns is lower than the number you type in.
-- Contributions and percentage withdrawals are deflated by the inflation index while returns are applied in nominal terms, and fixed withdrawals are adjusted by a single month's inflation. Real and nominal amounts are therefore mixed, and the results should be read as rough illustrations rather than precise dollar values.
 - No taxes, fees, sequence-of-returns modelling beyond independent draws, fat tails, mean reversion, social security or other income.
 
 ## Requirements
