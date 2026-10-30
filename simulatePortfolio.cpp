@@ -45,6 +45,10 @@ List simulatePortfolio(int numSimulations, double startBalance, double meanRetur
       cumulativeInflation *= (1 + monthlyInflation);
       inflationIndex[month] = cumulativeInflation;
 
+      // The annual step-up applies from the first month of each new contribution year (13, 25, ...)
+      if (month > 1 && (month - 1) % 12 == 0 && month <= contributionMonths) {
+        currentContribution *= annualIncreaseFactor;
+      }
       double contribution = (month <= contributionMonths) ? currentContribution : 0;
       double withdrawal = 0;
       if (month > contributionMonths) {
@@ -56,10 +60,6 @@ List simulatePortfolio(int numSimulations, double startBalance, double meanRetur
       }
       withdrawals[month] = withdrawal;
       withdrawalsReal[month] = withdrawal / cumulativeInflation;
-
-      if ((month - 1) % 12 == 0 && month <= contributionMonths) {
-        currentContribution *= annualIncreaseFactor;
-      }
 
       balances[month] = balances[month - 1] * (1 + monthlyReturn) + contribution - withdrawal;
       balancesReal[month] = balances[month] / cumulativeInflation;
